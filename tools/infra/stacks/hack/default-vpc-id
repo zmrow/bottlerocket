@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -e
+
+readarray -t vpc_ids <<< "$(aws ec2 describe-vpcs --filter Name=isDefault,Values=true --query 'Vpcs[0].VpcId' --output text)"
+
+if [[ "${#vpc_ids[*]}" -ne 1 ]]; then
+  logger -s --no-act -t ERROR "unable to determine default VPC ID (found ${#vpc_ids[*]})"
+  exit 1
+fi
+
+echo "${vpc_ids[0]}"

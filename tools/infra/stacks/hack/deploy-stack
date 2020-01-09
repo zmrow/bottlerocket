@@ -1,0 +1,193 @@
+#!/usr/bin/env bash
+##
+##  deploy-stack - Simplified 'cfn deploy' interface prioritizing iterative use
+##
+##  deploy-stack provides a simplified interface to calling the AWS cli with,
+##  potentially, many, many flags and arguments:
+##
+##      aws cloudformation deploy --template-file stack-template.yml \
+##                                --capabilities CAPABILITY_IAM ...
+##
+##  Instead, deploy-stack uses a simplified interface with intuitive passing of
+##  a subset of the flags and values typically passed when deploying stack
+##  templates. See below 'usage' to learn how to use its simplified interface.
+##
+##  The provided stack-file may have a comment like '# stack-name: my-stack-name'
+##  near the top in a comment to automatically be used for naming the stack (if
+##  not specified in the call).
+##
+##  N.B. 'do-it' must be in the command line in order to execute a deployment
+##  and will prompt for confirmation before executing.
+##
+##  usage:
+##
+##      deploy-stack <stack-file> [stack-name] [do-it] \
+##                   [ParameterName=ParameterValue] ... \
+##                   [CAPABILITY_IAM|CAPABILITY_NAMED_IAM|...] ... \
+##                   ['aws cloudformation deploy' --flags] ...
+##
+usage() {
+    grep '^##' "$0" | sed -e 's/^## //' -e 's/^##//'
+}
+
+logger() {
+    command logger -s --no-act "$@"
+}
+
+# get_param extracts a "front-matter" attribute from the provided stack file.
+get_param() {
+    local param_token_re="$1"
+    local max_vals="$2"
+    local -a vals
+    readarray -t vals ${max_count:+-n "$max_count"} < \
+        <(grep -E "^# ${param_token_re}: " "$STACK_FILE" | awk -F': ' '{print $2}')
+    echo "${vals[@]}"
+}
+
+declare -a CFN_PARAMETERS
+declare -a CFN_CAPABILITIES
+declare STACK_NAME
+DRY_RUN="dryrun"
+
+if ! hash aws grep sed tee realpath basename; then
+    logger -t ERROR "required commands missing"
+    exit 1
+fi
+
+DEPLOY_OUT_DIR="${DEPLOY_OUT_DIR:-$(realpath .deploy)}"
+progname="$(basename "$0")"
+
+# Parse args
+if [[ "$#" -lt 1 ]]; then
+    logger -t ERROR "provide a stack to deploy"
+    usage
+    exit 1
+fi
+STACK_FILE_ARG="$1"
+shift 1
+
+while [[ "$#" -gt 0 ]]; do
+    arg="$1"
+    case "$arg" in
+        --help|-h)
+            usage
+            exit 1
+            ;;
+        -*)
+            break ;;
+        CAPABILITY_*)
+            CFN_CAPABILITIES=( "$arg" "${CFN_CAPABILITIES[@]}" )
+            ;;
+        *=*)
+            CFN_PARAMETERS=( "$arg" "${CFN_PARAMETERS[@]}" )
+            ;;
+        do-it)
+            DRY_RUN=""
+            ;;
+        *)
+            STACK_NAME="$arg"
+            ;;
+    esac
+    shift 1
+done
+
+ARGS=("$@")
+
+if ! [[ -s "$STACK_FILE_ARG" ]]; then
+    logger -t ERROR "cannot deploy empty stack"
+    exit 1
+fi
+STACK_FILE="$STACK_FILE_ARG"
+
+# Resolve stack name either from the file or the provided command line
+# arguments.
+if [[ -z "$STACK_NAME" ]]; then
+    STACK_NAME="$(get_param "stack-name" 1)"
+    if [[ -z "$STACK_NAME" ]]; then
+        logger -t ERROR "was not provided a stack name - update file with '# stack-name: NAME' or specify a stack name"
+        exit 1
+    fi
+fi
+
+RUN_ID="$STACK_NAME.$(date --iso-8601=sec -u).${DRY_RUN:-deploy}"
+# Record the run in a log file.
+mkdir -p "$DEPLOY_OUT_DIR"
+run_dir="$DEPLOY_OUT_DIR"
+run_log="${run_dir}/${RUN_ID}.log"
+logger -t INFO "logging run into $(realpath --relative-base . "$run_log")"
+exec > >(tee >(logger -t "$progname" &> "${run_log}")) 2>&1
+logger -t INFO "run id for $STACK_NAME deployment: $RUN_ID"
+
+# Make sure the user knows what credentials they're using.
+caller_arn="$(aws sts get-caller-identity --query Arn --output text)"
+logger -t INFO "using $caller_arn to deploy stack $STACK_NAME on $(hostname --fqdn)"
+
+
+stack_requires=( "$(get_param "stack-requires")" )
+if [[ "${#stack_requires}" -gt 0 ]]; then
+    missing_stacks=()
+    logger -t INFO "stack requires ${#stack_requires[@]} stack(s): $(printf "'%s' " "${stack_requires[@]}")"
+    for stack in "${stack_requires[@]}"; do
+        logger -t INFO "checking for required stack: $stack"
+        if ! aws cloudformation describe-stacks --stack-name "$stack" &>/dev/null; then
+            logger -t ERROR "missing required stack: $stack"
+            missing_stacks=( "$stack" "${missing_stacks[@]}" )
+        fi
+    done
+    if [[ "${#missing_stacks}" -ne 0 ]]; then
+        logger -t ERROR "cannot continue with ${#missing_stacks[@]} required stack(s) missing"
+        exit 1
+    fi
+fi
+
+
+# Show them the command (roughly) that'll be run if proceeding.
+logger -t INFO "prepared for deployment for $STACK_NAME"
+sed 's/^# //' <<EOF
+aws cloudformation deploy \\
+    --template-file "$STACK_FILE" \\
+    --stack-name "$STACK_NAME" \\
+    # Dry run flag (if not deploying)
+    ${DRY_RUN:+--no-execute-changeset}\\
+    # Parameters
+    ${CFN_PARAMETERS:+--parameter-overrides "${CFN_PARAMETERS[@]}" }\\
+    # Capabilities
+    ${CFN_CAPABILITIES:+--capabilities "${CFN_CAPABILITIES[@]}" }\\
+    # Additional args
+    ${ARGS:+"${ARGS[@]}"}\\
+EOF
+
+# Confirm with the user before continuing on.
+if [[ -n "$DRY_RUN" ]]; then
+    logger -t INFO "no 'do-it' provided, dry running"
+else
+    read -r -p 'proceed with stack deployment? [yN]: ' proceed
+    if [[ "${proceed^^}" != "Y" ]]; then
+        logger -t INFO "aborting prepared deployment for $STACK_NAME"
+        exit 1
+    fi
+fi
+
+set -o pipefail
+# Run the cloudformation deploy, running any outputted describe-* calls as
+# result.
+{
+    set -x
+    aws cloudformation deploy \
+        --template-file "$STACK_FILE" \
+        --stack-name "$STACK_NAME" \
+        ${DRY_RUN:+--no-execute-changeset} \
+        ${CFN_PARAMETERS:+--parameter-overrides "${CFN_PARAMETERS[@]}"} \
+        ${CFN_CAPABILITIES:+--capabilities "${CFN_CAPABILITIES[@]}"} \
+        "${ARGS[@]}"
+} \
+    | tee -a /dev/stderr \
+    | awk -F '^aws ' '/cloudformation describe-/ {print $NF}' \
+    | xargs --no-run-if-empty -t -- aws \
+    | tee -a "${run_dir}/${RUN_ID}.json"
+ret="$?"
+
+if [[ "$ret" -ne 0 ]]; then
+    logger -t ERROR "deployment failed"
+    exit "$ret"
+fi
