@@ -87,3 +87,6 @@ template-path = "/usr/share/templates/chrony-conf"
 
 [metadata.settings.ntp]
 affected-services = ["chronyd"]
+
+[settings.foo]
+bar = "baz"
