@@ -1,4 +1,4 @@
 version = "0.3.1"
 
 [migrations]
-"(0.3.0, 0.3.1)" = ["migrate_v0.3.1_migration-test-remove-motd"]
+"(0.3.0, 0.3.1)" = ["migrate_v0.3.1_migration-test-remove-motd", "migrate_v0.3.1_migration-test-add-foo"]
