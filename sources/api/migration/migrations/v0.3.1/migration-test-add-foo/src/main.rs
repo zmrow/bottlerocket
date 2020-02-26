@@ -4,7 +4,7 @@ use migration_helpers::{migrate, Result};
 use migration_helpers::common_migrations::AddSettingMigration;
 use std::process;
 
-/// This is a test of our ability to remove a setting in Bottlerocket.
+/// This is a test of our ability to add a setting in Bottlerocket.
 fn run() -> Result<()> {
     migrate(AddSettingMigration("settings.foo"))
 }
