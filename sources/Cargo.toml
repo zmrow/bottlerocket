@@ -16,7 +16,7 @@ members = [
     "api/migration/migrator",
     "api/migration/migration-helpers",
 
-    # "api/migration/migrations/vX.Y.Z/...
+    "api/migration/migrations/v0.3.1/migration-test-remove-motd",
 
     "bottlerocket-release",
 
