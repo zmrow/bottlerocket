@@ -3,6 +3,9 @@ Description=Bottlerocket userdata configuration system
 # Need network online to talk to IMDS.
 After=network-online.target apiserver.service
 Requires=network-online.target apiserver.service
+# This is for ordering purposes, systemd will ignore it if the mount unit
+# never runs because the device doesn't exist
+After=media-cdrom.mount
 # We only want to run once, at first boot.  This file is created by early-boot-config
 # after a successful run.
 ConditionPathExists=!/var/lib/bottlerocket/early-boot-config.ran

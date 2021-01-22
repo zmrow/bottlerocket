@@ -1,0 +1,13 @@
+[Unit]
+Description=CDROM mount(/media/cdrom)
+Requires=dev-cdrom.device
+After=dev-cdrom.device
+
+[Mount]
+What=/dev/cdrom
+Where=/media/cdrom
+Type=iso9660
+Options=defaults,noexec,context=system_u:object_r:private_t:s0
+
+[Install]
+WantedBy=dev-cdrom.device
