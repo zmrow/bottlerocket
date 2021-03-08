@@ -4,7 +4,7 @@
 use super::{PlatformDataProvider, SettingsJson};
 use crate::compression::{expand_file_maybe, expand_slice_maybe, OptionalCompressionReader};
 use serde::Deserialize;
-use snafu::{ensure, OptionExt, ResultExt};
+use snafu::{ensure, ResultExt};
 use std::ffi::OsStr;
 use std::fs::File;
 use std::io::BufReader;
@@ -78,15 +78,8 @@ impl VmwareDataProvider {
             );
         }
 
-        // Remove outer "settings" layer before sending to API
-        let mut val: toml::Value =
-            toml::from_str(&user_data_str).context(error::TOMLUserDataParse)?;
-        let table = val.as_table_mut().context(error::UserDataNotTomlTable)?;
-        let inner = table
-            .remove("settings")
-            .context(error::UserDataMissingSettings)?;
+        let json = SettingsJson::from_toml_str(&user_data_str, "user data")?;
 
-        let json = SettingsJson::from_val(&inner, "user data").context(error::SettingsToJSON)?;
         Ok(Some(json))
     }
 
@@ -190,20 +183,21 @@ mod error {
         #[snafu(display("Unable to read input file '{}': {}", path.display(), source))]
         InputFileRead { path: PathBuf, source: io::Error },
 
-        #[snafu(display("Error serializing TOML to JSON: {}", source))]
-        SettingsToJSON { source: serde_json::error::Error },
+        #[snafu(display(
+            "Invalid (non-utf8) output from base64 string '{}': {}",
+            base64_string,
+            source
+        ))]
+        InvalidUTF8 {
+            base64_string: String,
+            source: std::str::Utf8Error,
+        },
 
-        #[snafu(display("Error parsing TOML user data: {}", source))]
-        TOMLUserDataParse { source: toml::de::Error },
+        #[snafu(context(false))]
+        SettingsToJSON { source: crate::settings::Error },
 
         #[snafu(display("Found multiple user data files in '{}', expected 1", location))]
         UserDataFileCount { location: String },
-
-        #[snafu(display("TOML data did not contain 'settings' section"))]
-        UserDataMissingSettings,
-
-        #[snafu(display("Data is not a TOML table"))]
-        UserDataNotTomlTable,
 
         #[snafu(display("Unable to deserialize XML from: '{}': {}", path.display(), source))]
         XmlDeserialize {

@@ -3,7 +3,8 @@
 
 use super::{PlatformDataProvider, SettingsJson};
 use crate::compression::expand_file_maybe;
-use snafu::{OptionExt, ResultExt};
+use snafu::ResultExt;
+use std::fs;
 
 pub(crate) struct LocalFileDataProvider;
 
@@ -26,15 +27,7 @@ impl PlatformDataProvider for LocalFileDataProvider {
             return Ok(output);
         }
 
-        // Remove outer "settings" layer before sending to API
-        let mut val: toml::Value =
-            toml::from_str(&user_data_str).context(error::TOMLUserDataParse)?;
-        let table = val.as_table_mut().context(error::UserDataNotTomlTable)?;
-        let inner = table
-            .remove("settings")
-            .context(error::UserDataMissingSettings)?;
-
-        let json = SettingsJson::from_val(&inner, "user data").context(error::SettingsToJSON)?;
+        let json = SettingsJson::from_toml_str(&user_data_str, "user data")?;
         output.push(json);
 
         Ok(output)
@@ -52,16 +45,7 @@ mod error {
         #[snafu(display("Unable to read input file '{}': {}", path.display(), source))]
         InputFileRead { path: PathBuf, source: io::Error },
 
-        #[snafu(display("Error serializing TOML to JSON: {}", source))]
-        SettingsToJSON { source: serde_json::error::Error },
-
-        #[snafu(display("Error parsing TOML user data: {}", source))]
-        TOMLUserDataParse { source: toml::de::Error },
-
-        #[snafu(display("TOML data did not contain 'settings' section"))]
-        UserDataMissingSettings,
-
-        #[snafu(display("Data is not a TOML table"))]
-        UserDataNotTomlTable,
+        #[snafu(context(false))]
+        SettingsToJSON { source: crate::settings::Error },
     }
 }
