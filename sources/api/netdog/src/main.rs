@@ -70,6 +70,12 @@ mod error {
 
         #[snafu(display("Failed to write hostname to '{}': {}", path.display(), source))]
         HostnameWriteFailed { path: PathBuf, source: io::Error },
+
+        #[snafu(display("Error serializing to JSON: '{}': {}", output, source))]
+        JsonSerialize {
+            output: String,
+            source: serde_json::error::Error,
+        },
     }
 }
 
@@ -80,6 +86,7 @@ type Result<T> = std::result::Result<T, error::Error>;
 enum SubCommand {
     Install,
     Remove,
+    NodeIp,
 }
 
 #[derive(Debug, Deserialize)]
@@ -299,11 +306,30 @@ fn remove(args: &Args) -> Result<()> {
     Ok(())
 }
 
+fn node_ip(args: &Args) -> Result<()> {
+    match (
+        &args.interface_name,
+        &args.interface_type,
+        &args.interface_family,
+    ) {
+        (InterfaceName::Eth0, InterfaceType::Dhcp, InterfaceFamily::Ipv4) => {
+            let info = parse_lease_info(&args.data_file)?;
+            let ip = info.ip_address.to_string();
+            // sundog expects JSON-serialized output
+            let output = serde_json::to_string(&ip).context(error::JsonSerialize { output: ip })?;
+            println!("{}", output);
+        }
+        _ => eprintln!("Unhandled 'node-ip' command: {:?}", &args),
+    }
+    Ok(())
+}
+
 fn run() -> Result<()> {
     let args = parse_args(env::args())?;
     match args.sub_command {
         SubCommand::Install => install(&args)?,
         SubCommand::Remove => remove(&args)?,
+        SubCommand::NodeIp => node_ip(&args)?,
     }
     Ok(())
 }

@@ -20,7 +20,8 @@ Source2: containerd-config-toml_aws-k8s
 Source3: containerd-config-toml_aws-dev
 Source4: containerd-config-toml_aws-ecs-1
 Source5: containerd-tmpfiles.conf
-Source6: containerd-config-toml_vmware-dev
+Source6: containerd-config-toml_vmware-k8s
+Source7: containerd-config-toml_vmware-dev
 Source1000: clarify.toml
 
 # TODO: submit this upstream.
@@ -84,7 +85,7 @@ install -p -m 0644 %{S:1} %{buildroot}%{_cross_unitdir}/containerd.service
 
 install -d %{buildroot}%{_cross_templatedir}
 install -d %{buildroot}%{_cross_factorydir}%{_cross_sysconfdir}/containerd
-install -p -m 0644 %{S:2} %{S:3} %{S:4} %{S:6} %{buildroot}%{_cross_templatedir}
+install -p -m 0644 %{S:2} %{S:3} %{S:4} %{S:6} %{S:7} %{buildroot}%{_cross_templatedir}
 
 install -d %{buildroot}%{_cross_tmpfilesdir}
 install -p -m 0644 %{S:5} %{buildroot}%{_cross_tmpfilesdir}/containerd.conf

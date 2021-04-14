@@ -1,5 +1,6 @@
 %global _cross_first_party 1
-%global _is_k8s_variant %(if echo %{_cross_variant} | grep -q "k8s"; then echo 1; else echo 0; fi)
+%global _is_k8s_variant %(if echo %{_cross_variant} | grep -Fq "k8s"; then echo 1; else echo 0; fi)
+%global _is_aws_variant %(if echo %{_cross_variant} | grep -Fq "aws"; then echo 1; else echo 0; fi)
 %undefine _debugsource_packages
 
 Name: %{_cross_os}os
@@ -78,7 +79,9 @@ Summary: Updates settings dynamically based on user-specified generators
 Requires: %{_cross_os}apiserver = %{version}-%{release}
 Requires: %{_cross_os}schnauzer = %{version}-%{release}
 %if %{_is_k8s_variant}
+%if %{_is_aws_variant}
 Requires: %{_cross_os}pluto = %{version}-%{release}
+%endif
 %endif
 Requires: %{_cross_os}bork = %{version}-%{release}
 Requires: %{_cross_os}shibaken = %{version}-%{release}
@@ -190,10 +193,12 @@ Summary: Settings generator for ECS
 %endif
 
 %if %{_is_k8s_variant}
+%if %{_is_aws_variant}
 %package -n %{_cross_os}pluto
 Summary: Dynamic setting generator for kubernetes
 %description -n %{_cross_os}pluto
 %{summary}.
+%endif
 
 %package -n %{_cross_os}static-pods
 Summary: Manages user-defined K8S static pods
@@ -270,7 +275,9 @@ echo "** Output from non-static builds:"
     -p ecs-settings-applier \
 %endif
 %if %{_is_k8s_variant}
+%if %{_is_aws_variant}
     -p pluto \
+%endif
     -p static-pods \
 %endif
     %{nil}
@@ -297,7 +304,10 @@ for p in \
   ecs-settings-applier \
 %endif
 %if %{_is_k8s_variant}
-  pluto static-pods \
+%if %{_is_aws_variant}
+  pluto \
+%endif
+  static-pods \
 %endif
 ; do
   install -p -m 0755 ${HOME}/.cache/%{__cargo_target}/release/${p} %{buildroot}%{_cross_bindir}
@@ -334,8 +344,10 @@ install -d %{buildroot}%{_cross_sysusersdir}
 install -p -m 0644 %{S:2} %{buildroot}%{_cross_sysusersdir}/api.conf
 
 %if %{_is_k8s_variant}
+%if %{_is_aws_variant}
 install -d %{buildroot}%{_cross_datadir}/eks
 install -p -m 0644 %{S:3} %{buildroot}%{_cross_datadir}/eks
+%endif
 %endif
 
 install -d %{buildroot}%{_cross_datadir}/updog
@@ -463,10 +475,12 @@ install -p -m 0644 %{S:300} %{buildroot}%{_cross_udevrulesdir}/80-ephemeral-stor
 %endif
 
 %if %{_is_k8s_variant}
+%if %{_is_aws_variant}
 %files -n %{_cross_os}pluto
 %{_cross_bindir}/pluto
 %dir %{_cross_datadir}/eks
 %{_cross_datadir}/eks/eni-max-pods
+%endif
 
 %files -n %{_cross_os}static-pods
 %{_cross_bindir}/static-pods
