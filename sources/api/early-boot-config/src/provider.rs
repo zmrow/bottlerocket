@@ -2,14 +2,18 @@
 
 use crate::settings::SettingsJson;
 
-#[cfg(any(bottlerocket_platform = "aws", bottlerocket_platform = "aws-dev"))]
-pub(crate) mod aws;
-
 #[cfg(bottlerocket_platform = "aws-dev")]
 pub(crate) mod local_file;
 
+#[cfg(any(bottlerocket_platform = "aws", bottlerocket_platform = "aws-dev"))]
+mod aws;
+#[cfg(any(bottlerocket_platform = "aws", bottlerocket_platform = "aws-dev"))]
+pub(crate) use aws::Platform;
+
 #[cfg(bottlerocket_platform = "vmware")]
-pub(crate) mod vmware;
+mod vmware;
+#[cfg(bottlerocket_platform = "vmware")]
+pub(crate) use vmware::Platform;
 
 /// Support for new platforms can be added by implementing this trait.
 pub(crate) trait PlatformDataProvider {

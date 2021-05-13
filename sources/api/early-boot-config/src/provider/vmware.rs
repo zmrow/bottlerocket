@@ -14,9 +14,9 @@ use std::iter::FromIterator;
 use std::path::Path;
 use std::str;
 
-pub(crate) struct VmwareDataProvider;
+pub(crate) struct Platform;
 
-impl VmwareDataProvider {
+impl Platform {
     // This program expects that the CD-ROM is already mounted.  Mounting happens elsewhere in a
     // systemd unit file
     const CD_ROM_MOUNT: &'static str = "/media/cdrom";
@@ -235,7 +235,7 @@ impl VmwareDataProvider {
     }
 }
 
-impl PlatformDataProvider for VmwareDataProvider {
+impl PlatformDataProvider for Platform {
     fn platform_data(&self) -> std::result::Result<Vec<SettingsJson>, Box<dyn std::error::Error>> {
         let mut output = Vec::new();
 

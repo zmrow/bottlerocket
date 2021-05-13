@@ -9,10 +9,12 @@ use snafu::{OptionExt, ResultExt};
 use std::fs;
 use std::path::Path;
 
-/// Unit struct for AWS so we can implement the PlatformDataProvider trait.
-pub(crate) struct AwsDataProvider;
+#[cfg(bottlerocket_platform = "aws-dev")]
+use crate::provider::local_file::{file_user_data, USER_DATA_FILE};
 
-impl AwsDataProvider {
+pub(crate) struct Platform;
+
+impl Platform {
     // Currently only able to get fetch session tokens from `latest`
     // FIXME Pin to a date version that supports IMDSv2 once such a date version is available.
     const IMDS_TOKEN_ENDPOINT: &'static str = "http://169.254.169.254/latest/api/token";
@@ -178,13 +180,21 @@ impl AwsDataProvider {
     }
 }
 
-impl PlatformDataProvider for AwsDataProvider {
+impl PlatformDataProvider for Platform {
     /// Return settings changes from the instance identity document and user data.
     fn platform_data(&self) -> std::result::Result<Vec<SettingsJson>, Box<dyn std::error::Error>> {
         let mut output = Vec::new();
         let client = Client::new();
 
         let session_token = Self::fetch_imds_session_token(&client)?;
+
+        #[cfg(bottlerocket_platform = "aws-dev")]
+        {
+            match file_user_data()? {
+                Some(s) => output.push(s),
+                None => warn!("No user data found via local file: {}", USER_DATA_FILE),
+            }
+        }
 
         // Instance identity doc first, so the user has a chance to override
         match Self::identity_document(&client, &session_token) {
