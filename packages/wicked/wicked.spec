@@ -30,6 +30,12 @@ Source14: server.xml
 Source99: constants.xml
 %endif
 
+Source1001: wickedd-dhcp4.service
+Source1002: wickedd-dhcp6.service
+Source1003: wickedd-nanny.service
+Source1004: wickedd.service
+Source1005: wicked.service
+
 # upstream fixes
 
 # local hacks
@@ -93,6 +99,9 @@ install -p -m 0644 %{S:10} %{buildroot}%{_cross_tmpfilesdir}/wicked.conf
 # install our pre-generated constants
 install -p -m 0644 %{S:99} %{buildroot}%{_cross_datadir}/wicked/schema/constants.xml
 %endif
+
+install -p -m 0644 %{S:1001} %{S:1002} %{S:1003} %{S:1004} %{S:1005} \
+  %{buildroot}%{_cross_unitdir}
 
 %files
 %license COPYING

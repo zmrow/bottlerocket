@@ -1,0 +1,19 @@
+[Unit]
+Description=wicked managed network interfaces
+Wants=network.target wickedd.service wickedd-nanny.service
+After=network-pre.target wickedd.service wickedd-nanny.service
+Before=network-online.target network.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+LimitCORE=infinity
+ExecStart=/usr/sbin/wicked --systemd ifup all --log-level debug --debug most
+ExecStop=/usr/sbin/wicked --systemd ifdown all --log-level debug --debug most
+ExecReload=/usr/sbin/wicked --systemd ifreload all --log-level debug --debug most
+
+[Install]
+WantedBy=multi-user.target network-online.target
+Alias=network.service
+Also=wickedd.service
+
